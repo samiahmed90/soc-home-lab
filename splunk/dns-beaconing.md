@@ -1,119 +1,183 @@
+# DNS Beaconing Detection
 
-DNS Beaconing Detection
-Objective
+## Objective
 
 Investigate DNS traffic to identify hosts exhibiting DNS beaconing behavior, determine the affected system, identify the suspicious domain being contacted, and assess potential Command-and-Control (C2) communication.
 
-Environment
+---
 
-SIEM: Splunk Enterprise 10.4
+# Environment
 
-Log Source: Suricata DNS Logs (DNS_logs.json)
+- **SIEM:** Splunk Enterprise 10.4
+- **Log Source:** Suricata DNS Logs (`DNS_logs.json`)
+- **Host:** LinuxUbuntuServer1
+- **Index:** suricata
+- **Sourcetype:** dns:suricata
 
-Host: LinuxUbuntuServer1
+---
 
-Index: suricata
+# SPL Queries Used
 
-Sourcetype: dns:suricata
+## DNS query frequency by source host
 
-SPL Queries Used
-
-DNS query frequency by source host
-
+```spl
 index="suricata" sourcetype="dns:suricata"
 | stats count by src_ip, dns.rrname
+```
 
-Identify hosts with excessive DNS queries
+## Identify hosts with excessive DNS queries
 
+```spl
 index="suricata" sourcetype="dns:suricata"
 | stats count by src_ip, dns.rrname
 | where count > 50
+```
 
-Review DNS beacon timeline
+## DNS beaconing timeline
 
+```spl
 index="suricata" sourcetype="dns:suricata" src_ip="192.168.1.101"
 | table timestamp dns.rrname
 | sort timestamp
+```
 
-Display victim host, queried domain, and destination DNS server
+## Victim to destination IP mapping
 
+```spl
 index="suricata" sourcetype="dns:suricata" src_ip="192.168.1.101"
 | table timestamp src_ip dns.rrname dest_ip
-Findings
-Overview
-100 DNS events analyzed.
-10 internal hosts generated DNS traffic.
-Most hosts queried legitimate services such as Google, Microsoft, Cloudflare, and Dropbox.
-One internal host generated an unusually high number of requests to a suspicious domain.
-Suspicious Host
-Source IP	Suspicious Domain	DNS Requests
-192.168.1.101	b6f93jks.cmdcontrol-malware.com	76
-Normal DNS Activity
+```
 
-Other internal hosts generated only a small number of DNS requests to well-known legitimate services including:
+---
 
-www.google.com
-update.microsoft.com
-cdn.cloudflare.com
-api.dropbox.com
+# Findings
 
-Request counts ranged from 1–3 queries, representing expected user activity.
+## Overview
 
-Attack Pattern
+Analysis of the Suricata DNS logs identified one internal host generating an unusually high volume of repetitive DNS requests.
 
-Host 192.168.1.101 repeatedly queried the domain
+Out of **100 DNS events**, **76 queries** originated from a single system:
 
+- **Victim Host:** `192.168.1.101`
+- **Suspicious Domain:** `b6f93jks.cmdcontrol-malware.com`
+- **Query Count:** **76**
+- **Destination DNS Server:** `8.8.8.8`
+
+All remaining hosts generated only one to three DNS queries to legitimate services such as Google, Microsoft, Dropbox, and Cloudflare.
+
+---
+
+## DNS Query Frequency
+
+| Source IP | Domain | Query Count |
+|-----------|--------|------------:|
+| **192.168.1.101** | **b6f93jks.cmdcontrol-malware.com** | **76** |
+
+---
+
+## Timeline Analysis
+
+The timestamp investigation shows the infected host repeatedly querying the same malicious domain over short intervals.
+
+Example events:
+
+| Timestamp | Domain |
+|-----------|--------|
+| 2025-08-02T07:00:00+00:00 | b6f93jks.cmdcontrol-malware.com |
+| 2025-08-02T07:00:43+00:00 | b6f93jks.cmdcontrol-malware.com |
+| 2025-08-02T07:01:00+00:00 | b6f93jks.cmdcontrol-malware.com |
+| 2025-08-02T07:01:39+00:00 | b6f93jks.cmdcontrol-malware.com |
+| 2025-08-02T07:04:40+00:00 | b6f93jks.cmdcontrol-malware.com |
+| ... | ... |
+
+The repeated queries at consistent intervals are characteristic of **DNS beaconing**, where malware periodically checks in with its Command-and-Control infrastructure.
+
+---
+
+## Victim-to-Destination Mapping
+
+| Victim (Source IP) | Suspicious Domain | Destination IP |
+|-------------------|-------------------|----------------|
+| 192.168.1.101 | b6f93jks.cmdcontrol-malware.com | 8.8.8.8 |
+
+The `dest_ip` observed in these DNS events is **8.8.8.8**, Google's public DNS resolver.
+
+**Important:** This is **not** the attacker's web server.
+
+Instead:
+
+```
+Victim
+192.168.1.101
+      │
+      ▼
+Google DNS (8.8.8.8)
+      │
+      ▼
 b6f93jks.cmdcontrol-malware.com
+      │
+      ▼
+Attacker Infrastructure
+```
 
-throughout the investigation period.
+The actual attacker IP cannot be determined from the DNS logs alone because the victim is communicating with the DNS resolver, which then resolves the malicious domain.
 
-The repeated, periodic requests to the same domain strongly indicate DNS beaconing, where malware continually contacts a Command-and-Control (C2) infrastructure to receive instructions or maintain connectivity.
+To identify the attacker’s actual infrastructure, additional HTTP, TLS, or network flow logs would be required after DNS resolution.
 
-Infrastructure Observed
-Victim Host	Queried Domain	Destination IP
-192.168.1.101	b6f93jks.cmdcontrol-malware.com	8.8.8.8
+---
 
-Important Note
+# Attack Pattern
 
-The dest_ip shown in the DNS logs (8.8.8.8) is Google Public DNS, which acts as the DNS resolver receiving the query.
+The infected workstation repeatedly queried the same suspicious domain while all other hosts generated only normal DNS activity.
 
-It is not the attacker's Command-and-Control server.
+This behavior is highly indicative of malware establishing periodic communication with its Command-and-Control server using DNS beaconing.
 
-The malicious infrastructure identified during this investigation is the suspicious domain:
+---
 
-b6f93jks.cmdcontrol-malware.com
+# Severity
 
-The actual attacker-controlled IP address would require DNS response records, passive DNS data, firewall logs, or additional network telemetry to identify.
+**High**
 
-Severity
+A single host demonstrates repeated communication with a suspicious domain commonly associated with malware Command-and-Control activity.
 
-High — A single internal host demonstrated clear DNS beaconing behavior by repeatedly querying a suspicious domain associated with potential Command-and-Control communication.
+---
 
-MITRE ATT&CK Mapping
-Tactic	Technique ID	Technique Name
-Command and Control	T1071.004	Application Layer Protocol: DNS
+# MITRE ATT&CK Mapping
 
-T1071.004 — Malware communicates with its Command-and-Control infrastructure using DNS requests to evade detection while maintaining remote connectivity.
+| Tactic | Technique ID | Technique |
+|---------|--------------|-----------|
+| Command and Control | T1071.004 | Application Layer Protocol: DNS |
+| Command and Control | T1008 | Fallback Channels |
 
-Recommended Response
-Immediately isolate 192.168.1.101 from the network.
-Block the malicious domain b6f93jks.cmdcontrol-malware.com using DNS filtering or protective DNS services.
-If the domain resolves to one or more IP addresses during further investigation, block those attacker IP addresses at the firewall and perimeter security devices.
-Add the domain and any resolved IP addresses to IDS/IPS detection and blocking rules.
-Perform a full malware scan and forensic investigation on the affected endpoint.
-Review firewall, proxy, and endpoint logs for additional communication with the same domain or any IP addresses associated with it.
-Hunt across the environment for other systems querying b6f93jks.cmdcontrol-malware.com.
-Reset credentials and monitor the affected system for continued beaconing or persistence mechanisms after remediation.
-Screenshots
-DNS query frequency by source IP and domain
-High-frequency DNS beacon detection (count > 50)
-Beaconing timeline for 192.168.1.101
-Victim host, queried domain, and destination DNS resolver table
+**T1071.004** – Malware uses DNS as its communication channel with C2 infrastructure.
 
-Screesnshots
-<img width="2880" height="1532" alt="Screenshot 2026-07-08 211722" src="https://github.com/user-attachments/assets/07d2d0ea-6d73-4cc0-91b1-f0a9033c0e4c" />
-<img width="2880" height="1527" alt="Screenshot 2026-07-08 211808 - Copy" src="https://github.com/user-attachments/assets/34cd6211-5d2d-4624-b671-d39888ba53c2" />
-<img width="2880" height="1527" alt="Screenshot 2026-07-08 211808 - Copy" src="https://github.com/user-attachments/assets/b5869bbc-96ab-4fba-b395-8a178696641c" />
-<img width="2880" height="1527" alt="Screenshot 2026-07-08 211808 - Copy - Copy" src="https://github.com/user-attachments/assets/e691a4e2-109d-4bfe-9b2e-8373a1112962" />
+**T1008** – DNS provides an alternate communication channel that is often allowed through firewalls.
 
+---
 
+# Recommended Response
+
+- Immediately isolate host **192.168.1.101** from the network.
+- Block access to **b6f93jks.cmdcontrol-malware.com** at the DNS filtering solution or firewall.
+- If the domain has known resolved IP addresses, block those IPs at the firewall.
+- Perform malware and endpoint forensic analysis on the affected workstation.
+- Review HTTP, HTTPS, and proxy logs to identify any follow-up communication after DNS resolution.
+- Monitor the environment for additional hosts querying the same domain.
+- Add the domain to DNS sinkhole or threat intelligence blocklists.
+- Reset credentials if compromise of the affected system is suspected.
+
+---
+
+# Screenshots
+
+- DNS query frequency by source host
+  <img width="2880" height="1532" alt="Screenshot 2026-07-08 211722" src="https://github.com/user-attachments/assets/90f788c0-5ea8-4874-8671-70463eb8b912" />
+
+- Excessive DNS query detection
+  <img width="2880" height="1532" alt="Screenshot 2026-07-08 211722" src="https://github.com/user-attachments/assets/b28b8af2-d8e3-40f4-85f7-c222517b9c08" />
+
+- DNS beaconing timeline
+  <img width="2880" height="1536" alt="Screenshot 2026-07-08 212440" src="https://github.com/user-attachments/assets/3ae7292e-f7f6-412c-a413-b71e2b7a2455" />
+
+- Victim-to-destination IP mapping
+  <img width="2880" height="1536" alt="Screenshot 2026-07-08 212440" src="https://github.com/user-attachments/assets/0edbe772-dfa1-4326-9be9-07b1a2e2a38c" />
