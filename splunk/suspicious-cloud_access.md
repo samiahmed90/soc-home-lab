@@ -112,5 +112,6 @@ The successful AWS Console logins indicate that valid credentials were used to a
 
 ### Successful Console Logins Outside India
 
-<img width="2880" height="1512" alt="Screenshot 2026-07-10 225928" src="https://github.com/user-attachments/assets/af40e37e-a5f6-43b0-98fa-42b79b60ca90" />
+![Uploading Screenshot 2026-07-10 225928.png…]()
+
 
