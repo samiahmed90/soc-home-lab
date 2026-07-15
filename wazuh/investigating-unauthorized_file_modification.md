@@ -203,4 +203,5 @@ The monitored file was deleted to generate a file deletion event.
 
 The Wazuh Dashboard successfully detected all file integrity events, including file creation, modification, and deletion. The generated alerts include the monitored file path, event type, rule description, severity level, and corresponding rule ID.
 
-<img width="2880" height="1704" alt="image" src="https://github.com/user-attachments/assets/d8fd79d3-316a-4e57-af49-7a0bc99f14c2" />
+<img width="2880" height="1511" alt="Screenshot 2026-07-15 231956" src="https://github.com/user-attachments/assets/2bec3f18-59c9-4e75-bde8-e9462142857b" />
+
