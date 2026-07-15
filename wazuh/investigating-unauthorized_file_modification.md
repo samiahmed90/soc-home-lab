@@ -1,4 +1,4 @@
-<img width="2880" height="1704" alt="image" src="https://github.com/user-attachments/assets/00bec23f-7741-4082-b898-5b2b9d0401e5" /># Investigating Unauthorized File Modification Using Wazuh
+# Investigating Unauthorized File Modification Using Wazuh
 
 ## Overview
 
