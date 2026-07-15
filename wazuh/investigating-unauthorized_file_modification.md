@@ -1,52 +1,39 @@
-# Investigating Unauthorized File Modification Using Wazuh
+<img width="2880" height="1704" alt="image" src="https://github.com/user-attachments/assets/00bec23f-7741-4082-b898-5b2b9d0401e5" /># Investigating Unauthorized File Modification Using Wazuh
 
 ## Overview
 
-This project demonstrates how to configure **Wazuh File Integrity Monitoring (FIM)** to detect unauthorized file changes on an Ubuntu Linux system. The Wazuh **Syscheck** module was configured to monitor the `/root` directory in real time, allowing file creation, modification, and deletion events to be detected immediately.
+This project demonstrates how to configure **Wazuh File Integrity Monitoring (FIM)** to detect unauthorized changes on an Ubuntu Linux system. The Syscheck module was configured to monitor the `/root` directory in real time. After applying the configuration, file creation, modification, and deletion events were generated to validate the monitoring process.
 
 ---
 
-## Objectives
-
-- Configure Wazuh File Integrity Monitoring (FIM)
-- Monitor the `/root` directory
-- Detect file creation
-- Detect file modification
-- Detect file deletion
-- Validate alerts within the Wazuh Dashboard
-
----
-
-## Environment
+## Lab Environment
 
 | Component | Value |
-|----------|-------|
+|-----------|-------|
 | SIEM | Wazuh |
 | Operating System | Ubuntu Linux |
-| Detection Module | Syscheck |
+| Monitoring Module | Syscheck (File Integrity Monitoring) |
 | Configuration File | `/var/ossec/etc/ossec.conf` |
 | Monitored Directory | `/root` |
 
 ---
 
-## Configuration
+## Configuring File Integrity Monitoring
 
-The following line was added inside the `<syscheck>` section of `ossec.conf`.
+Navigate to the Wazuh configuration file.
+
+```bash
+cd /var/ossec/etc
+nano ossec.conf
+```
+
+Inside the `<syscheck>` block, add the following configuration.
 
 ```xml
 <directories check_all="yes" report_changes="yes" realtime="yes">/root</directories>
 ```
 
-### Configuration Parameters
-
-| Parameter | Description |
-|-----------|-------------|
-| `check_all="yes"` | Monitors file attributes and hashes |
-| `report_changes="yes"` | Reports file content modifications |
-| `realtime="yes"` | Uses Linux inotify for real-time monitoring |
-| `/root` | Directory being monitored |
-
-After saving the configuration, the Wazuh agent was restarted.
+Restart the Wazuh agent to apply the changes.
 
 ```bash
 sudo systemctl restart wazuh-agent
@@ -54,124 +41,101 @@ sudo systemctl restart wazuh-agent
 
 ---
 
-## Test 1 – File Creation
+## Validation
 
-A new file named `FIM.txt` was created inside `/root`.
+### Step 1 - Create a File
+
+Create a file inside the monitored directory.
 
 ```bash
-nano FIM.txt
+nano /root/FIM.txt
 ```
 
-Sample content:
+Expected Result
+
+- Rule ID **554**
+- Event: **File Added**
+
+---
+
+### Step 2 - Modify the File
+
+Edit the file by adding additional content.
+
+Expected Result
+
+- Rule ID **550**
+- Event: **File Modified**
+
+---
+
+### Step 3 - Delete the File
+
+Delete the monitored file.
+
+```bash
+rm /root/FIM.txt
+```
+
+Expected Result
+
+- Rule ID **553**
+- Event: **File Deleted**
+
+---
+
+## Detection Results
+
+The Wazuh dashboard successfully detected every file operation performed during testing.
+
+| Rule ID | Event | File |
+|---------|-------|------|
+| 554 | File Added | `/root/FIM.txt` |
+| 550 | File Modified | `/root/test.txt` |
+| 553 | File Deleted | `/root/FIM.txt` |
+
+### Wazuh Dashboard
+
+![File Integrity Monitoring Results](images/fim-events.png)
+
+The dashboard confirms:
+
+- File creation detected
+- File modification detected
+- File deletion detected
+- Event timestamps
+- Rule IDs
+- File paths
+- Agent responsible for the event
+
+---
+
+## How File Integrity Monitoring Works
 
 ```text
-Hey There!
-This is a file integrity monitoring test.
+File Operation
+      │
+      ▼
+Linux inotify
+      │
+      ▼
+Wazuh Agent (Syscheck)
+      │
+      ▼
+File hash & metadata comparison
+      │
+      ▼
+Wazuh Manager
+      │
+      ▼
+Dashboard Alert
 ```
-
-### Result
-
-Wazuh detected the new file.
-
-| Rule ID | Event |
-|---------|-------|
-| **554** | File Added |
-
-> **Screenshot**
-
-```
-<img width="2880" height="1524" alt="Screenshot 2026-07-15 224628" src="https://github.com/user-attachments/assets/ac283afa-ecc6-47ab-8ec1-e73cb2c22c23" />
-
-```
-
----
-
-## Test 2 – File Modification
-
-The file "test.txt" was modified by adding additional content.
-
-```bash
-nano test.txt
-```
-
-### Result
-
-Wazuh detected the file integrity change.
-
-| Rule ID | Event |
-|---------|-------|
-| **550** | Integrity Checksum Changed |
-
-> **Screenshot**
-
-```
-<img width="2880" height="1503" alt="Screenshot 2026-07-15 225450" src="https://github.com/user-attachments/assets/4bf07169-31e0-41b8-ad68-754544c1ba03" />
-
-```
-
----
-
-## Test 3 – File Deletion
-
-The monitored file was deleted.
-
-```bash
-rm FIM.txt
-```
-
-### Result
-
-Wazuh detected the deletion.
-
-| Rule ID | Event |
-|---------|-------|
-| **553** | File Deleted |
-
-> **Screenshot**
-
-```
-<img width="2880" height="1503" alt="Screenshot 2026-07-15 225450" src="https://github.com/user-attachments/assets/ede9a929-290b-4243-95cd-2db619cadf9d" />
-mages/file-deleted.png
-```
-
----
-
-## Wazuh Dashboard
-
-The File Integrity Monitoring dashboard displayed alerts for all three events.
-
-| Operation | Rule ID | Status |
-|-----------|---------|--------|
-| File Created | 554 | ✅ Detected |
-| File Modified | 550 | ✅ Detected |
-| File Deleted | 553 | ✅ Detected |
-
----
-
-## What Happened Behind the Scenes
-
-1. A file operation occurred inside the monitored directory.
-2. Linux **inotify** detected the filesystem event.
-3. The Wazuh agent processed the change.
-4. Syscheck recalculated the file metadata and hash.
-5. The event was sent to the Wazuh Manager.
-6. The Wazuh Dashboard generated the corresponding alert.
-
----
-
-## Detection Summary
-
-| Rule ID | Description |
-|---------|-------------|
-| 550 | File Modified |
-| 553 | File Deleted |
-| 554 | File Added |
 
 ---
 
 ## Skills Demonstrated
 
-- Wazuh
+- Wazuh SIEM
 - File Integrity Monitoring (FIM)
 - Syscheck Configuration
 - Linux Administration
@@ -184,4 +148,59 @@ The File Integrity Monitoring dashboard displayed alerts for all three events.
 
 ## Conclusion
 
-This project successfully demonstrated Wazuh's File Integrity Monitoring capabilities by configuring the Syscheck module to monitor the `/root` directory in real time. Wazuh accurately detected file creation, modification, and deletion events, confirming that the monitoring configuration was functioning as expected. These capabilities are essential for identifying unauthorized changes to critical files and supporting incident detection and response on Linux systems.
+This project successfully demonstrated the deployment and validation of Wazuh File Integrity Monitoring on Ubuntu Linux. By monitoring the `/root` directory in real time, Wazuh accurately detected file creation, modification, and deletion events, demonstrating how FIM can be used to identify unauthorized changes and improve host-based threat detection.
+
+---
+
+## Screenshots
+
+### 1. Wazuh File Integrity Monitoring Configuration
+
+The `/root` directory was added to the `<syscheck>` section of `ossec.conf` to enable real-time File Integrity Monitoring.
+
+<img width="2178" height="1226" alt="Screenshot 2026-07-15 223624" src="https://github.com/user-attachments/assets/bd7728c8-f2ec-4672-8051-dfcd404810a9" />
+
+
+---
+
+### 2. Restarting the Wazuh Agent
+
+After updating the configuration, the Wazuh agent was restarted to apply the changes.
+
+<img width="2178" height="1226" alt="Screenshot 2026-07-15 223842" src="https://github.com/user-attachments/assets/e80b7b0a-0a9a-4d2b-a9aa-87c17aa33365" />
+
+
+---
+
+### 3. Creating the Test File
+
+A test file (`FIM.txt`) was created inside the monitored `/root` directory to generate a file creation event.
+
+<img width="2178" height="1226" alt="Screenshot 2026-07-15 224509" src="https://github.com/user-attachments/assets/21b1252c-1366-46d3-bebd-67d17c967217" />
+
+
+---
+
+### 4. Modifying the Test File
+
+The contents of the monitored file were modified to verify that Wazuh detects integrity changes.
+
+<img width="2350" height="1226" alt="Screenshot 2026-07-15 225501" src="https://github.com/user-attachments/assets/c48d3362-4cec-4b62-ba60-111e447820e7" />
+
+
+---
+
+### 5. Deleting the Test File
+
+The monitored file was deleted to generate a file deletion event.
+
+<img width="2350" height="1226" alt="image" src="https://github.com/user-attachments/assets/0f003ca5-4427-4cb7-9abb-d0388ce9ddbb" />
+
+
+---
+
+### 6. Wazuh Detection Results
+
+The Wazuh Dashboard successfully detected all file integrity events, including file creation, modification, and deletion. The generated alerts include the monitored file path, event type, rule description, severity level, and corresponding rule ID.
+
+<img width="2880" height="1704" alt="image" src="https://github.com/user-attachments/assets/d8fd79d3-316a-4e57-af49-7a0bc99f14c2" />
