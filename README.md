@@ -27,6 +27,7 @@ investigation across multiple tools.
 - Unauthorized File Modification Detection
 - Vulnerability Detection
 - SQL Injection Attack Detection
+- SSH Brute Force Detection
 
 ### Osquery
 - List All Installed Software
