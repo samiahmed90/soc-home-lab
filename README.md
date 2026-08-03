@@ -25,7 +25,6 @@ investigation across multiple tools.
 
 ### Wazuh
 - Unauthorized File Modification Detection
-- SSH Brute Force Investigation
 - Vulnerability Detection
 - SQL Injection Attack Detection
 
@@ -42,6 +41,3 @@ investigation across multiple tools.
 - Incident investigation and documentation
 - Linux server administration via CLI and SSH
 
-## Setup
-See individual folders for setup guides and 
-investigation writeups with screenshots.
